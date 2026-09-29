@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Результаты обучения и тестирования</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    .kpi-card { border-left: 4px solid #ef4444; transition: transform 0.15s ease; }
+    .kpi-card:hover { transform: translateY(-2px); }
+    .progress-bg { background-color: #e5e7eb; height: 10px; border-radius: 999px; overflow: hidden; min-width: 80px; }
+    .progress-fill { background-color: #22c55e; height: 100%; border-radius: 999px; transition: width 0.6s ease; }
+    .scale-lt50 { background-color: #ffcdd2; color: #b71c1c; }
+    .scale-50-70 { background-color: #ffe0b2; color: #e65100; }
+    .scale-70-80 { background-color: #fff9c4; color: #f57f17; }
+    .scale-80-90 { background-color: #c8e6c9; color: #1b5e20; }
+    .scale-gt90 { background-color: #a5d6a7; color: #1b5e20; }
+    .table-wrap { box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .nav-tab { border-bottom: 2px solid transparent; transition: all 0.15s; }
+    .nav-tab.active { border-bottom-color: #ef4444; color: #111827; background-color: #fff; }
+    .cell-pill { display: inline-block; padding: 2px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; min-width: 32px; text-align: center; }
+    .fade-in { animation: fadeIn 0.4s ease-in-out; }
+    @keyframes fadeIn { from { opacity:0; transform: translateY(4px); } to { opacity:1; transform: translateY(0); } }
+    .login-card { max-width: 420px; }
+    .input-field { transition: border-color 0.15s, box-shadow 0.15s; }
+    .input-field:focus { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.10); outline: none; }
+    .modal-overlay { background: rgba(0,0,0,0.45); backdrop-filter: blur(2px); }
+    .group-header { cursor: pointer; background-color: #f9fafb; }
+    .group-header:hover { background-color: #f3f4f6; }
+    .theme-row { background-color: #ffffff; }
+    .rotate-180 { transform: rotate(180deg); }
+    .action-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; transition: all 0.15s; }
+    .action-btn:hover { background-color: #e5e7eb; color: #2563eb; }
+  </style>
+</head>
+<body class="p-4 md:p-8">
+  <div class="max-w-7xl mx-auto fade-in">
+
+    <!-- Навигация -->
+    <div class="flex gap-1 mb-6 border-b border-gray-200 bg-white rounded-t-lg px-2">
+      <button onclick="switchTab('dashboard')" id="tab-dashboard" class="nav-tab active px-5 py-3 text-sm font-semibold text-gray-500 hover:text-gray-800 rounded-t-md">
+        <i class="fa-solid fa-chart-pie mr-2"></i>Дашборд
+      </button>
+      <button onclick="switchTab('admin')" id="tab-admin" class="nav-tab px-5 py-3 text-sm font-semibold text-gray-500 hover:text-gray-800 rounded-t-md">
+        <i class="fa-solid fa-gear mr-2"></i>Админ-панель
+      </button>
+    </div>
+
+    <!-- ДАШБОРД -->
+    <div id="dashboard" class="tab-content">
+      <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-3">
+          <i class="fa-solid fa-chart-simple text-red-500 text-xl"></i>
+          Результаты обучения и тестирования
+        </h1>
+        <p class="text-gray-500 mt-1 text-sm">Нажмите на стрелку программы, чтобы развернуть темы. Кнопка <i class="fa-solid fa-users text-xs mx-1"></i> открывает сотрудников.</p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6" id="kpi-container"></div>
+      <div class="bg-white rounded-lg overflow-hidden table-wrap">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm text-left whitespace-nowrap">
+            <thead class="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-100">
+              <tr>
+                <th class="px-5 py-3 font-semibold">Название обучения / Тема</th>
+                <th class="px-5 py-3 font-semibold w-56">Доля прошедших тест</th>
+                <th class="px-3 py-3 font-semibold text-center">&lt; 50%</th>
+                <th class="px-3 py-3 font-semibold text-center">50 – 70%</th>
+                <th class="px-3 py-3 font-semibold text-center">70 – 80%</th>
+                <th class="px-3 py-3 font-semibold text-center">80 – 90%</th>
+                <th class="px-3 py-3 font-semibold text-center">&gt; 90%</th>
+                <th class="px-5 py-3 font-semibold text-center">NPS</th>
+                <th class="px-5 py-3 font-semibold text-center">CSI</th>
+                <th class="px-5 py-3 font-semibold text-center w-16"></th>
+              </tr>
+            </thead>
+            <tbody id="table-body" class="divide-y divide-gray-100"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-4 mt-4 text-xs text-gray-600 bg-white w-fit px-4 py-2 rounded-lg shadow-sm">
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-[3px] scale-lt50 inline-block"></span> &lt; 50%</div>
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-[3px] scale-50-70 inline-block"></span> 50 – 70%</div>
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-[3px] scale-70-80 inline-block"></span> 70 – 80%</div>
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-[3px] scale-80-90 inline-block"></span> 80 – 90%</div>
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-[3px] scale-gt90 inline-block"></span> &gt; 90%</div>
+      </div>
+    </div>
+
+    <!-- АДМИН-ПАНЕЛЬ -->
+    <div id="admin" class="tab-content hidden">
+      <div id="admin-login" class="flex justify-center mt-10">
+        <div class="bg-white rounded-lg p-8 shadow-sm border border-gray-100 login-card w-full">
+          <div class="text-center mb-6">
+            <div class="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-3"><i class="fa-solid fa-lock text-red-500 text-xl"></i></div>
+            <h2 class="text-lg font-bold text-gray-800">Вход в админ-панель</h2>
+            <p class="text-sm text-gray-500 mt-1">Требуется авторизация для управления данными.</p>
+          </div>
+          <form onsubmit="return adminLogin(event)">
+            <div class="mb-4"><label class="block text-sm font-medium text-gray-700 mb-1">Логин</label><input type="text" id="admin-user" class="input-field w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Введите логин" required></div>
+            <div class="mb-4"><label class="block text-sm font-medium text-gray-700 mb-1">Пароль</label><input type="password" id="admin-pass" class="input-field w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Введите пароль" required></div>
+            <div id="login-error" class="hidden text-sm text-red-600 mb-3 text-center"></div>
+            <button type="submit" class="w-full py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-semibold transition-colors">Войти</button>
+          </form>
+        </div>
+      </div>
+      <div id="admin-content" class="hidden">
+        <div class="bg-white rounded-lg p-6 shadow-sm max-w-2xl border border-gray-100 relative">
+          <div class="absolute top-4 right-4"><button onclick="adminLogout()" class="text-xs text-gray-400 hover:text-red-600 flex items-center gap-1 transition-colors"><i class="fa-solid fa-arrow-right-from-bracket"></i> Выйти</button></div>
+          <h2 class="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2"><i class="fa-solid fa-screwdriver-wrench text-red-500"></i> Админ-панель</h2>
+          <div class="space-y-6">
+            <div>
+              <h3 class="font-semibold text-gray-800 mb-1">1. Скачать шаблон Excel</h3>
+              <p class="text-sm text-gray-500 mb-3">Шаблон содержит два листа: «Данные» (сводка по темам) и «Сотрудники» (детализация).</p>
+              <button onclick="downloadTemplate()" class="inline-flex items-center px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium transition-colors"><i class="fa-solid fa-download mr-2"></i>Скачать шаблон .xlsx</button>
+            </div>
+            <hr class="border-gray-100">
+            <div>
+              <h3 class="font-semibold text-gray-800 mb-1">2. Загрузить новый файл</h3>
+              <p class="text-sm text-gray-500 mb-3">Выберите заполненный Excel. Данные заменят текущие.</p>
+              <label class="flex items-center gap-3 cursor-pointer group">
+                <div class="px-4 py-2 bg-red-50 text-red-700 rounded-lg text-sm font-semibold group-hover:bg-red-100 transition-colors border border-red-100"><i class="fa-solid fa-upload mr-2"></i>Выберите файл</div>
+                <span id="file-label" class="text-sm text-gray-400">.xlsx, .xls, .csv</span>
+                <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" onchange="handleFile(event)" class="hidden">
+              </label>
+            </div>
+            <hr class="border-gray-100">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="font-semibold text-gray-800 mb-1">3. Сбросить данные</h3>
+                <p class="text-sm text-gray-500">Вернуть демонстрационные данные по умолчанию.</p>
+              </div>
+              <button onclick="clearData()" class="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-sm font-medium transition-colors"><i class="fa-solid fa-trash-can mr-2"></i>Очистить</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- МОДАЛЬНОЕ ОКНО: Сотрудники -->
+  <div id="emp-modal" class="fixed inset-0 z-50 hidden modal-overlay flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div>
+          <h3 class="text-lg font-bold text-gray-800" id="modal-title">Сотрудники</h3>
+          <p class="text-xs text-gray-500 mt-0.5" id="modal-subtitle"></p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="downloadModalExcel()" class="px-3 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-semibold hover:bg-gray-800 transition-colors flex items-center gap-1.5">
+            <i class="fa-solid fa-file-excel"></i> Скачать Excel
+          </button>
+          <button onclick="closeModal()" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 transition-colors"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+      </div>
+      <div class="px-6 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
+        <div class="relative flex-1 max-w-sm">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+          <input type="text" id="modal-search" oninput="filterModal()" class="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-red-400" placeholder="Поиск по ФИО...">
+        </div>
+        <span class="text-xs text-gray-500" id="modal-count"></span>
+      </div>
+      <div class="overflow-auto flex-1 p-0">
+        <table class="w-full text-sm text-left">
+          <thead class="text-xs text-gray-500 uppercase bg-gray-50 sticky top-0 z-10">
+            <tr>
+              <th class="px-6 py-3 font-semibold">ФИО</th>
+              <th class="px-6 py-3 font-semibold">Должность</th>
+              <th class="px-6 py-3 font-semibold">Подразделение</th>
+              <th class="px-6 py-3 font-semibold">Тема</th>
+              <th class="px-6 py-3 font-semibold text-center">Результат</th>
+              <th class="px-6 py-3 font-semibold text-center">Шкала</th>
+              <th class="px-6 py-3 font-semibold text-center">NPS</th>
+              <th class="px-6 py-3 font-semibold text-center">CSI</th>
+            </tr>
+          </thead>
+          <tbody id="modal-body" class="divide-y divide-gray-100"></tbody>
+        </table>
+        <div id="modal-empty" class="hidden text-center py-12 text-gray-400 text-sm">Нет сотрудников для выбранного фильтра.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== НАСТРОЙКА ДОСТУПА =====
+    const ADMIN_USERS = [
+      { username: 'admin', password: 'changeme' }
+    ];
+    // =============================
+
+    const STORAGE_KEY = 'training_dashboard_v7';
+    const EMPLOYEES_KEY = 'training_employees_v7';
+    const AUTH_KEY = 'training_admin_auth';
+
+    const demoData = [
+      { name: 'Обучение промо', theme: 'Начало промо', completionRate: 85, s50: 1, s50_70: 0, s70_80: 5, s80_90: 40, s90: 4, nps: 72, csi: 52 },
+      { name: 'Обучение промо', theme: 'В процессе промо', completionRate: 90, s50: 0, s50_70: 0, s70_80: 3, s80_90: 35, s90: 2, nps: 70, csi: 50 },
+      { name: 'Обучение промо', theme: 'Завершение промо', completionRate: 95, s50: 1, s50_70: 0, s70_80: 2, s80_90: 5, s90: 2, nps: null, csi: null },
+      { name: 'Обучение не промо', theme: 'Тема 1', completionRate: 75, s50: 0, s50_70: 2, s70_80: 10, s80_90: 15, s90: 3, nps: 78, csi: 72 },
+      { name: 'Обучение не промо', theme: 'Тема 2', completionRate: 85, s50: 0, s50_70: 0, s70_80: 10, s80_90: 15, s90: 5, nps: 82, csi: 78 },
+      { name: 'Финансовый курс', theme: 'Бухгалтерия', completionRate: 100, s50: 0, s50_70: 0, s70_80: 0, s80_90: 5, s90: 5, nps: null, csi: null }
+    ];
+
+    const demoEmployees = [
+      { name: 'Иванов И.И.', position: 'Кассир', unit: 'Магазин №123', course: 'Обучение промо', theme: 'Начало промо', score: 85, nps: 9, csi: 8 },
+      { name: 'Петрова А.А.', position: 'Продавец', unit: 'Магазин №456', course: 'Обучение промо', theme: 'В процессе промо', score: 92, nps: 10, csi: 9 },
+      { name: 'Сидоров В.В.', position: 'Старший кассир', unit: 'Магазин №123', course: 'Обучение промо', theme: 'Начало промо', score: 45, nps: 7, csi: 6 },
+      { name: 'Кузнецова Е.Д.', position: 'Кассир', unit: 'Магазин №789', course: 'Обучение промо', theme: 'Завершение промо', score: 67, nps: null, csi: null },
+      { name: 'Смирнов П.А.', position: 'Продавец', unit: 'Магазин №111', course: 'Обучение не промо', theme: 'Тема 1', score: 74, nps: 8, csi: 8 },
+      { name: 'Васильева О.Н.', position: 'Кассир', unit: 'Магазин №222', course: 'Обучение не промо', theme: 'Тема 2', score: 95, nps: 10, csi: 9 },
+      { name: 'Попов Д.С.', position: 'Администратор', unit: 'Магазин №333', course: 'Финансовый курс', theme: 'Бухгалтерия', score: 88, nps: null, csi: null },
+      { name: 'Новикова М.К.', position: 'Кассир', unit: 'Магазин №444', course: 'Финансовый курс', theme: 'Бухгалтерия', score: 96, nps: null, csi: null }
+    ];
+
+    function getData() { try { const s = localStorage.getItem(STORAGE_KEY); if (s) return JSON.parse(s); } catch(e){} return JSON.parse(JSON.stringify(demoData)); }
+    function getEmployees() { try { const s = localStorage.getItem(EMPLOYEES_KEY); if (s) return JSON.parse(s); } catch(e){} return JSON.parse(JSON.stringify(demoEmployees)); }
+    function saveData(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+    function saveEmployees(data) { localStorage.setItem(EMPLOYEES_KEY, JSON.stringify(data)); }
+
+    function isAdminSession() {
+      try { const s = sessionStorage.getItem(AUTH_KEY); if (!s) return false; const obj = JSON.parse(s); return obj && obj.ts && (Date.now() - obj.ts < 8*60*60*1000); } catch(e){ return false; }
+    }
+    function setAdminSession(user) { sessionStorage.setItem(AUTH_KEY, JSON.stringify({ user, ts: Date.now() })); }
+    function clearAdminSession() { sessionStorage.removeItem(AUTH_KEY); }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.getElementById(tab).classList.remove('hidden');
+      document.querySelectorAll('.nav-tab').forEach(el => { el.classList.remove('active'); el.classList.add('text-gray-500'); });
+      const activeBtn = document.getElementById('tab-' + tab);
+      activeBtn.classList.add('active'); activeBtn.classList.remove('text-gray-500');
+      if (tab === 'dashboard') renderDashboard();
+      if (tab === 'admin') renderAdminState();
+    }
+
+    function renderAdminState() {
+      const loggedIn = isAdminSession();
+      document.getElementById('admin-login').classList.toggle('hidden', loggedIn);
+      document.getElementById('admin-content').classList.toggle('hidden', !loggedIn);
+      document.getElementById('login-error').classList.add('hidden');
+      document.getElementById('admin-user').value = '';
+      document.getElementById('admin-pass').value = '';
+    }
+
+    function adminLogin(e) {
+      e.preventDefault();
+      const user = document.getElementById('admin-user').value.trim();
+      const pass = document.getElementById('admin-pass').value;
+      const match = ADMIN_USERS.find(u => u.username === user && u.password === pass);
+      const err = document.getElementById('login-error');
+      if (match) { setAdminSession(user); renderAdminState(); }
+      else { err.textContent = 'Неверный логин или пароль'; err.classList.remove('hidden'); }
+      return false;
+    }
+    function adminLogout() { clearAdminSession(); renderAdminState(); }
+
+    function groupBy(array, key) {
+      return array.reduce((acc, item) => { (acc[item[key]] = acc[item[key]] || []).push(item); return acc; }, {});
+    }
+
+    // Усреднение только по заполненным значениям (null/пустые исключаются)
+    function avg(arr, key) {
+      const nums = arr.map(x => parseFloat(x[key])).filter(n => Number.isFinite(n));
+      return nums.length ? nums.reduce((a,b)=>a+b,0)/nums.length : null;
+    }
+
+    function sum(arr, key) {
+      return arr.reduce((s, x) => s + (parseFloat(x[key]) || 0), 0);
+    }
+
+    function fmt2(n) {
+      if (!Number.isFinite(n)) return '—';
+      return n.toFixed(2).replace('.', ',');
+    }
+
+    function renderDashboard() {
+      const data = getData();
+      renderKPI(data);
+      renderTable(data);
+    }
+
+    function renderKPI(data) {
+      const grouped = groupBy(data, 'name');
+      const programs = Object.values(grouped);
+      const count = programs.length;
+      const avgCompletion = count ? programs.reduce((sum, rows) => sum + avg(rows, 'completionRate'), 0) / count : 0;
+      const avgNps = count ? programs.reduce((sum, rows) => { const a = avg(rows, 'nps'); return a !== null ? sum + a : sum; }, 0) / programs.filter(rows => avg(rows, 'nps') !== null).length : null;
+      const avgCsi = count ? programs.reduce((sum, rows) => { const a = avg(rows, 'csi'); return a !== null ? sum + a : sum; }, 0) / programs.filter(rows => avg(rows, 'csi') !== null).length : null;
+
+      // Корректный расчет среднего по программам: только те, где есть значения
+      const programsWithNps = programs.filter(rows => avg(rows, 'nps') !== null);
+      const programsWithCsi = programs.filter(rows => avg(rows, 'csi') !== null);
+      const finalAvgNps = programsWithNps.length ? programsWithNps.reduce((sum, rows) => sum + avg(rows, 'nps'), 0) / programsWithNps.length : null;
+      const finalAvgCsi = programsWithCsi.length ? programsWithCsi.reduce((sum, rows) => sum + avg(rows, 'csi'), 0) / programsWithCsi.length : null;
+
+      const fmt = (n, dec=1) => Number.isFinite(n) ? n.toFixed(dec).replace('.', ',') : '—';
+      const items = [
+        { label: 'Программ обучения', value: count, unit: '', dec: 0 },
+        { label: 'Средняя доля прошедших', value: avgCompletion, unit: '%', dec: 1 },
+        { label: 'Средний NPS', value: finalAvgNps, unit: '', dec: 2 },
+        { label: 'Средний CSI', value: finalAvgCsi, unit: '', dec: 2 }
+      ];
+      document.getElementById('kpi-container').innerHTML = items.map((item,i)=>`
+        <div class="bg-white rounded-lg p-5 shadow-sm kpi-card cursor-pointer" onclick="kpiClick(${i})">
+          <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">${item.label}</div>
+          <div class="text-3xl font-extrabold text-gray-800">${fmt(item.value,item.dec)}${item.unit}</div>
+        </div>`).join('');
+    }
+
+    function kpiClick(idx) {
+      const emps = getEmployees();
+      if (!emps || !emps.length) { alert('Нет данных по сотрудникам. Загрузите лист «Сотрудники» в админ-панели.'); return; }
+      openModal('', null, null);
+    }
+
+    function toggleGroup(gid) {
+      document.querySelectorAll('.' + gid).forEach(el => el.classList.toggle('hidden'));
+      const arrow = document.getElementById('arrow-' + gid);
+      if (arrow) arrow.classList.toggle('rotate-180');
+    }
+
+    function cell(val, cls) {
+      const v = parseFloat(val);
+      const empty = Number.isNaN(v) || v === 0;
+      return `<span class="cell-pill ${cls}">${empty ? '—' : v}</span>`;
+    }
+
+    function renderTable(data) {
+      const tbody = document.getElementById('table-body');
+      if (!data || !data.length) { tbody.innerHTML = '<tr><td colspan="10" class="px-5 py-10 text-center text-gray-400 text-sm">Нет данных. Загрузите файл в админ-панели.</td></tr>'; return; }
+      const grouped = groupBy(data, 'name');
+      let html = '';
+      Object.keys(grouped).forEach((gName, gi) => {
+        const rows = grouped[gName];
+        const gid = 'grp-' + gi;
+        const agg = {
+          name: gName,
+          completionRate: avg(rows, 'completionRate'),
+          s50: sum(rows, 's50'), s50_70: sum(rows, 's50_70'), s70_80: sum(rows, 's70_80'),
+          s80_90: sum(rows, 's80_90'), s90: sum(rows, 's90'),
+          nps: avg(rows, 'nps'), csi: avg(rows, 'csi')
+        };
+        html += renderGroupRow(agg, gid);
+        rows.forEach(row => { html += renderThemeRow(row, gid); });
+      });
+      tbody.innerHTML = html;
+    }
+
+    function renderGroupRow(row, gid) {
+      const completion = parseFloat(row.completionRate) || 0;
+      const npsVal = row.nps; // может быть null
+      const csiVal = row.csi;
+      const npsCls = !Number.isFinite(npsVal) ? 'text-gray-400' : (npsVal >= 50 ? 'text-green-600' : 'text-red-600');
+      return `
+        <tr class="group-header border-b border-gray-100 transition-colors select-none" onclick="toggleGroup('${gid}')">
+          <td class="px-5 py-3.5">
+            <i id="arrow-${gid}" class="fa-solid fa-chevron-down text-gray-400 text-xs mr-2 transition-transform duration-200"></i>
+            <span class="font-bold text-gray-800">${row.name || '—'}</span>
+          </td>
+          <td class="px-5 py-3.5">
+            <div class="flex items-center gap-3">
+              <div class="flex-1 progress-bg"><div class="progress-fill" style="width:${Math.min(completion,100)}%"></div></div>
+              <span class="text-xs font-bold text-gray-600 w-10 text-right">${fmt2(completion)}%</span>
+            </div>
+          </td>
+          <td class="px-3 py-3.5 text-center">${cell(row.s50, 'scale-lt50')}</td>
+          <td class="px-3 py-3.5 text-center">${cell(row.s50_70, 'scale-50-70')}</td>
+          <td class="px-3 py-3.5 text-center">${cell(row.s70_80, 'scale-70-80')}</td>
+          <td class="px-3 py-3.5 text-center">${cell(row.s80_90, 'scale-80-90')}</td>
+          <td class="px-3 py-3.5 text-center">${cell(row.s90, 'scale-gt90')}</td>
+          <td class="px-5 py-3.5 text-center font-extrabold ${npsCls}">${fmt2(npsVal)}</td>
+          <td class="px-5 py-3.5 text-center font-extrabold text-blue-600">${fmt2(csiVal)}</td>
+          <td class="px-5 py-3.5 text-center">
+            <button onclick="event.stopPropagation(); openModal('${escapeHtml(row.name||'')}', null, null)" class="action-btn text-gray-400 hover:text-blue-600" title="Все сотрудники программы">
+              <i class="fa-solid fa-users text-sm"></i>
+            </button>
+          </td>
+        </tr>`;
+    }
+
+    function renderThemeRow(row, gid) {
+      const completion = parseFloat(row.completionRate) || 0;
+      const npsVal = row.nps;
+      const csiVal = row.csi;
+      const npsCls = !Number.isFinite(npsVal) ? 'text-gray-400' : (npsVal >= 50 ? 'text-green-600' : 'text-red-600');
+      return `
+        <tr class="theme-row ${gid} hidden hover:bg-gray-50 transition-colors">
+          <td class="px-5 py-3.5 pl-10 text-gray-600">${row.theme || '—'}</td>
+          <td class="px-5 py-3.5">
+            <div class="flex items-center gap-3">
+              <div class="flex-1 progress-bg"><div class="progress-fill" style="width:${Math.min(completion,100)}%"></div></div>
+              <span class="text-xs font-bold text-gray-600 w-10 text-right">${fmt2(completion)}%</span>
+            </div>
+          </td>
+          <td class="px-3 py-3.5 text-center">${cell(row.s50, 'scale-lt50')}</td>
+          <td class="px-3 py-3.5 text-center">${cell(row.s50_70, 'scale-50-70')}</td>
+          <td class="px-3 py-3.5 text-center">${cell(row.s70_80, 'scale-70-80')}</td>
+          <td class="px-3 py-3.5 text-center">${cell(row.s80_90, 'scale-80-90')}</td>
+          <td class="px-3 py-3.5 text-center">${cell(row.s90, 'scale-gt90')}</td>
+          <td class="px-5 py-3.5 text-center font-extrabold ${npsCls}">${fmt2(npsVal)}</td>
+          <td class="px-5 py-3.5 text-center font-extrabold text-blue-600">${fmt2(csiVal)}</td>
+          <td class="px-5 py-3.5 text-center">
+            <button onclick="openModal('${escapeHtml(row.name||'')}', null, '${escapeHtml(row.theme||'')}')" class="action-btn text-gray-400 hover:text-blue-600" title="Сотрудники темы">
+              <i class="fa-solid fa-users text-sm"></i>
+            </button>
+          </td>
+        </tr>`;
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+    }
+
+    function detectScale(score) {
+      const s = parseFloat(score);
+      if (Number.isNaN(s)) return '—';
+      if (s < 50) return '<50%';
+      if (s < 70) return '50-70%';
+      if (s < 80) return '70-80%';
+      if (s < 90) return '80-90%';
+      return '>90%';
+    }
+
+    let modalEmployees = [];
+    function openModal(courseName, scaleKey, themeName) {
+      const allEmps = getEmployees();
+      let filtered = courseName ? allEmps.filter(e => (e.course || '') === courseName) : allEmps.slice();
+      if (themeName) filtered = filtered.filter(e => (e.theme || '') === themeName);
+      if (scaleKey) {
+        filtered = filtered.filter(e => {
+          const s = detectScale(e.score);
+          const map = { lt50: '<50%', '50_70': '50-70%', '70_80': '70-80%', '80_90': '80-90%', gt90: '>90%' };
+          return s === map[scaleKey];
+        });
+      }
+      modalEmployees = filtered;
+      const scaleLabel = { lt50: '<50%', '50_70': '50–70%', '70_80': '70–80%', '80_90': '80–90%', gt90: '>90%' }[scaleKey] || '';
+      const title = courseName || 'Все сотрудники';
+      const subtitleParts = [themeName ? 'Тема: ' + themeName : '', scaleLabel ? 'Шкала: ' + scaleLabel : ''].filter(Boolean);
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-subtitle').textContent = subtitleParts.join('  |  ') || (courseName ? 'Все сотрудники программы' : 'Все загруженные сотрудники');
+      document.getElementById('modal-search').value = '';
+      document.getElementById('emp-modal').classList.remove('hidden');
+      filterModal();
+    }
+
+    function closeModal() { document.getElementById('emp-modal').classList.add('hidden'); }
+
+    function filterModal() {
+      const q = document.getElementById('modal-search').value.trim().toLowerCase();
+      const body = document.getElementById('modal-body');
+      const empty = document.getElementById('modal-empty');
+      const list = q ? modalEmployees.filter(e => (e.name || '').toLowerCase().includes(q)) : modalEmployees;
+      document.getElementById('modal-count').textContent = `Найдено: ${list.length}`;
+      if (!list.length) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+      body.innerHTML = list.map(e => {
+        const s = detectScale(e.score);
+        let cls = 'text-gray-600';
+        if (s === '<50%') cls = 'text-red-700 bg-red-50';
+        else if (s === '50-70%') cls = 'text-orange-700 bg-orange-50';
+        else if (s === '70-80%') cls = 'text-yellow-700 bg-yellow-50';
+        else if (s === '80-90%') cls = 'text-green-700 bg-green-50';
+        else if (s === '>90%') cls = 'text-green-800 bg-green-100';
+        return `<tr class="hover:bg-gray-50">
+          <td class="px-6 py-3 font-medium text-gray-800">${e.name || '—'}</td>
+          <td class="px-6 py-3 text-gray-600">${e.position || '—'}</td>
+          <td class="px-6 py-3 text-gray-600">${e.unit || '—'}</td>
+          <td class="px-6 py-3 text-gray-600">${e.theme || '—'}</td>
+          <td class="px-6 py-3 text-center font-semibold">${Number.isFinite(parseFloat(e.score)) ? parseFloat(e.score) + '%' : '—'}</td>
+          <td class="px-6 py-3 text-center"><span class="inline-block px-2 py-0.5 rounded text-xs font-semibold ${cls}">${s}</span></td>
+          <td class="px-6 py-3 text-center font-semibold">${Number.isFinite(parseFloat(e.nps)) ? e.nps : '—'}</td>
+          <td class="px-6 py-3 text-center font-semibold">${Number.isFinite(parseFloat(e.csi)) ? e.csi : '—'}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function downloadModalExcel() {
+      if (!modalEmployees || !modalEmployees.length) { alert('Нет данных для скачивания'); return; }
+      const aoa = [['ФИО', 'Должность', 'Подразделение', 'Программа', 'Тема', 'Результат теста (%)', 'NPS', 'CSI']];
+      modalEmployees.forEach(e => {
+        aoa.push([
+          e.name || '', e.position || '', e.unit || '', e.course || '', e.theme || '',
+          Number.isFinite(parseFloat(e.score)) ? parseFloat(e.score) : '',
+          Number.isFinite(parseFloat(e.nps)) ? parseFloat(e.nps) : '',
+          Number.isFinite(parseFloat(e.csi)) ? parseFloat(e.csi) : ''
+        ]);
+      });
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = [{wch:20},{wch:16},{wch:18},{wch:22},{wch:20},{wch:18},{wch:8},{wch:8}];
+      XLSX.utils.book_append_sheet(wb, ws, 'Сотрудники');
+      XLSX.writeFile(wb, 'sotrudniki_export.xlsx');
+    }
+
+    function downloadTemplate() {
+      const wb = XLSX.utils.book_new();
+      const aoaData = [
+        ['Название обучения','Тема','Доля прошедших','<50%','50-70%','70-80%','80-90%','>90%','NPS','CSI'],
+        ['Обучение промо','Начало промо',85,1,0,5,40,4,72,52],
+        ['Обучение промо','В процессе промо',90,0,0,3,35,2,70,50],
+        ['Обучение промо','Завершение промо',95,1,0,2,5,2,'',''],
+        ['Обучение не промо','Тема 1',75,0,2,10,15,3,78,72],
+        ['Финансовый курс','Бухгалтерия',100,0,0,0,5,5,'','']
+      ];
+      const wsData = XLSX.utils.aoa_to_sheet(aoaData);
+      wsData['!cols'] = [{wch:22},{wch:20},{wch:18},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8}];
+      XLSX.utils.book_append_sheet(wb, wsData, 'Данные');
+
+      const aoaEmp = [
+        ['ФИО','Должность','Подразделение','Название обучения','Тема','Результат теста (%)','NPS','CSI'],
+        ['Иванов И.И.','Кассир','Магазин №123','Обучение промо','Начало промо',85,9,8],
+        ['Петрова А.А.','Продавец','Магазин №456','Обучение промо','В процессе промо',92,10,9]
+      ];
+      const wsEmp = XLSX.utils.aoa_to_sheet(aoaEmp);
+      wsEmp['!cols'] = [{wch:20},{wch:16},{wch:18},{wch:22},{wch:20},{wch:18},{wch:8},{wch:8}];
+      XLSX.utils.book_append_sheet(wb, wsEmp, 'Сотрудники');
+
+      XLSX.writeFile(wb, 'shablon_obuchenie_temy.xlsx');
+    }
+
+    function handleFile(e) {
+      const file = e.target.files[0]; if (!file) return;
+      document.getElementById('file-label').textContent = file.name;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          let dataSheet = null; let empSheet = null;
+          workbook.SheetNames.forEach(sn => {
+            const low = sn.toLowerCase();
+            if (low.includes('данн') || low.includes('data') || low.includes('сводн')) dataSheet = workbook.Sheets[sn];
+            if (low.includes('сотрудн') || low.includes('staff') || low.includes('people') || low.includes('employ')) empSheet = workbook.Sheets[sn];
+          });
+          if (!dataSheet && workbook.SheetNames.length) dataSheet = workbook.Sheets[workbook.SheetNames[0]];
+          if (dataSheet) parseDataSheet(XLSX.utils.sheet_to_json(dataSheet, {header:1, defval:''}));
+          if (empSheet) parseEmployeesSheet(XLSX.utils.sheet_to_json(empSheet, {header:1, defval:''}));
+          else localStorage.removeItem(EMPLOYEES_KEY);
+          alert('Файл загружен. Переключаюсь на дашборд.');
+          document.getElementById('fileInput').value = '';
+          document.getElementById('file-label').textContent = '.xlsx, .xls, .csv';
+          switchTab('dashboard');
+        } catch (err) { alert('Ошибка чтения файла: ' + err.message); }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // Умный поиск: сначала точное совпадение, потом подстрока с исключениями
+    function buildFindSmart(headers) {
+      const norm = headers.map(h => String(h).toLowerCase().replace(/[%\s–—−-]+/g, ' ').trim());
+      return function findSmart(keys, exclude) {
+        // Точное совпадение
+        let idx = norm.findIndex(h => keys.some(k => h === k));
+        if (idx >= 0) return idx;
+        // Подстрока без исключений
+        return norm.findIndex(h => keys.some(k => h.includes(k)) && (!exclude || !exclude.some(e => h.includes(e))));
+      };
+    }
+
+    function parseDataSheet(rows) {
+      if (!rows || rows.length < 2) return;
+      const headers = rows[0].map(h => String(h).toLowerCase().replace(/[%\s–—−-]+/g, ' ').trim());
+      const findSmart = buildFindSmart(headers);
+      const idx = {
+        name: findSmart(['название обучения','название','обучение','программа','курс']),
+        theme: findSmart(['тема','theme','раздел','модуль'], ['подразделение']),
+        completionRate: findSmart(['доля прошедших','доля','прошедших','процент','завершивших']),
+        s50: findSmart(['меньше 50','<50','< 50','до 50']), s50_70: findSmart(['50-70','50 70','50 до 70']),
+        s70_80: findSmart(['70-80','70 80','70 до 80']), s80_90: findSmart(['80-90','80 90','80 до 90']),
+        s90: findSmart(['более 90','>90','> 90','выше 90']), nps: findSmart(['nps']), csi: findSmart(['csi'])
+      };
+      // Резервный поиск для шкал, если точные не сработали
+      if (idx.s50 < 0) idx.s50 = headers.findIndex(h => h.includes('50') && !h.includes('70') && !h.includes('80') && !h.includes('90'));
+      if (idx.s90 < 0) idx.s90 = headers.findIndex(h => h.includes('90') && !h.includes('80') && !h.includes('70') && !h.includes('50'));
+      if (idx.s50_70 < 0) idx.s50_70 = headers.findIndex(h => h.includes('50') && h.includes('70'));
+      if (idx.s70_80 < 0) idx.s70_80 = headers.findIndex(h => h.includes('70') && h.includes('80'));
+      if (idx.s80_90 < 0) idx.s80_90 = headers.findIndex(h => h.includes('80') && h.includes('90'));
+      const out=[];
+      for(let i=1;i<rows.length;i++){
+        const r=rows[i]; if(!r||r.every(v=>v===''||v==null)) continue;
+        const get=(k)=>{ const v=idx[k]>=0?r[idx[k]]:undefined; if(v===''||v==null) return 0; const n=parseFloat(String(v).toString().replace('%','').replace(',','.')); return Number.isFinite(n)?n:0; };
+        const getNum=(k)=>{ const v=idx[k]>=0?r[idx[k]]:undefined; if(v===''||v==null) return null; const n=parseFloat(String(v).toString().replace('%','').replace(',','.')); return Number.isFinite(n)?n:null; };
+        out.push({ name: idx.name>=0?String(r[idx.name]||''):'', theme: idx.theme>=0?String(r[idx.theme]||''):'', completionRate: get('completionRate'), s50: get('s50'), s50_70: get('s50_70'), s70_80: get('s70_80'), s80_90: get('s80_90'), s90: get('s90'), nps: getNum('nps'), csi: getNum('csi') });
+      }
+      if(out.length) saveData(out);
+    }
+
+    function parseEmployeesSheet(rows) {
+      if (!rows || rows.length < 2) return;
+      const headers = rows[0].map(h => String(h).toLowerCase().replace(/[%\s()]+/g, ' ').trim());
+      const findSmart = buildFindSmart(headers);
+      const idx = {
+        name: findSmart(['фио','сотрудник','фамилия']),
+        position: findSmart(['должность','позиция']),
+        unit: findSmart(['подразделение','магазин','отдел','unit']),
+        course: findSmart(['название обучения','название','обучение','курс','программа']),
+        theme: findSmart(['тема','theme','раздел','модуль'], ['подразделение']),
+        score: findSmart(['результат теста','результат','теста','оценка','балл','score']),
+        nps: findSmart(['nps']),
+        csi: findSmart(['csi'])
+      };
+      const out=[];
+      for(let i=1;i<rows.length;i++){
+        const r=rows[i]; if(!r||r.every(v=>v===''||v==null)) continue;
+        const get=(k)=> idx[k]>=0 ? String(r[idx[k]]||'') : '';
+        const getNum=(k)=>{ const v=idx[k]>=0?r[idx[k]]:undefined; if(v===''||v==null) return null; const n=parseFloat(String(v).toString().replace('%','').replace(',','.')); return Number.isFinite(n)?n:null; };
+        out.push({ name: get('name'), position: get('position'), unit: get('unit'), course: get('course'), theme: get('theme'), score: getNum('score'), nps: getNum('nps'), csi: getNum('csi') });
+      }
+      if(out.length) saveEmployees(out);
+    }
+
+    function clearData() {
+      if(confirm('Сбросить все данные к демонстрационным?')) {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(EMPLOYEES_KEY);
+        renderDashboard();
+      }
+    }
+
+    renderDashboard();
+  </script>
+</body>
+</html>
